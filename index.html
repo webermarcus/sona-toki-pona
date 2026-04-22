@@ -48,6 +48,45 @@
     font-display: swap;
   }
 </style>
+<!-- Favicon -->
+<link rel="icon" id="favicon" type="image/svg+xml"
+  href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%231A1814'/%3E%3C/svg%3E">
+<script>
+  (async function () {
+    try {
+      const font = new FontFace(
+        'linja pona',
+        "url('https://davidar.github.io/linja-pona/linja-pona-4.1.woff') format('woff')"
+      );
+      await font.load();
+      document.fonts.add(font);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+
+      // Dark rounded square background
+      ctx.beginPath();
+      ctx.roundRect(0, 0, 64, 64, 14);
+      ctx.fillStyle = '#1A1814';
+      ctx.fill();
+
+      // Compound glyph: toki-pona (hyphen triggers linja pona compound substitution)
+      ctx.fillStyle = '#B8421C';
+      ctx.font = '54px "linja pona"';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('toki-pona', 32, 34);
+
+      // Swap in the rendered favicon
+      const link = document.querySelector("link[rel~='icon']");
+      if (link) link.href = canvas.toDataURL('image/png');
+    } catch (e) {
+      // Falls back to the existing SVG favicon silently
+    }
+  })();
+</script>
 </head>
 <body>
 <div id="root"></div>
