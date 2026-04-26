@@ -14,6 +14,16 @@
 // qIdx changes. On next mount, reads that position and slices seq there.
 // The ↺ button clears the saved position and resets to step 1.
 
+function useIsMobile() {
+  const [m, setM] = React.useState(() => window.innerWidth < 640);
+  React.useEffect(() => {
+    const h = () => setM(window.innerWidth < 640);
+    window.addEventListener('resize', h, { passive: true });
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return m;
+}
+
 const RESUME_KEY = 'tp-lesson-resume';
 
 function getSavedIdx(lessonId, seqLen) {
@@ -56,11 +66,10 @@ function lessonReducer(state, action) {
 
 // ── Component ──────────────────────────────────────────────────────
 function LessonPlayer({ lesson, theme, state, setState, onBack }) {
+  const isMobile = useIsMobile();
 
   const seq = React.useMemo(() => {
     const steps = [];
-
-    steps.push({ kind: "teach", sectionIdx: 0 });
     lesson.words.forEach(w => {
       steps.push({ kind: "reveal",   word: w });
       steps.push({ kind: "tapGlyph", word: w });
@@ -169,14 +178,14 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
     }}>
       <header style={{
         display: "flex", alignItems: "center", gap: 16,
-        padding: "22px 40px", borderBottom: `1px solid ${theme.line}`,
+        padding: isMobile ? "14px 16px" : "22px 40px", borderBottom: `1px solid ${theme.line}`,
       }}>
         <button onClick={onBack} style={{
           background: "transparent", border: "none", cursor: "pointer",
           color: theme.ink, fontSize: 20, opacity: 0.6,
         }}>←</button>
 
-        <div style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", opacity: 0.55 }}>
+        <div style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", opacity: 0.55, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", minWidth: 0, flexShrink: 1 }}>
           {lesson.num} · {lesson.title}
         </div>
 
@@ -204,7 +213,7 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
 
       <main style={{
         flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "40px 24px",
+        padding: isMobile ? "16px 16px" : "40px 24px",
       }}>
         <div key={`${lesson.id}-${qIdx}`} style={{ animation: "fadeIn .4s ease" }}>
 

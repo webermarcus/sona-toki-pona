@@ -3,6 +3,16 @@
 // Flow: pick → read → (activity?) → ... → done
 // Tap any glyph to see its meaning. Translation hidden until revealed.
 
+function useIsMobile() {
+  const [m, setM] = React.useState(() => window.innerWidth < 640);
+  React.useEffect(() => {
+    const h = () => setM(window.innerWidth < 640);
+    window.addEventListener('resize', h, { passive: true });
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return m;
+}
+
 const TP_STORIES = [
   {
     id: "redhood",
@@ -270,10 +280,11 @@ function PickScreen({ stories, theme, onBack, onPick }) {
 
 // ── StoryPanel ─────────────────────────────────────────────────────
 function StoryPanel({ scene, story, idx, theme, tappedWord, revealed, onTap, onReveal, onAdvance, onBack }) {
+  const isMobile = useIsMobile();
   const total = story.scenes.length;
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.ink, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: `1px solid ${theme.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "14px 16px" : "20px 28px", borderBottom: `1px solid ${theme.line}` }}>
         <button onClick={onBack} style={{ background: "transparent", border: "none", cursor: "pointer", color: theme.ink, opacity: 0.5, fontSize: 18 }}>←</button>
         <div style={{ flex: 1, height: 2, background: theme.line, borderRadius: 2, margin: "0 20px", overflow: "hidden" }}>
           <div style={{ width: `${((idx + 1) / total) * 100}%`, height: "100%", background: theme.accent, transition: "width .4s cubic-bezier(.2,.7,.3,1)" }} />
@@ -298,7 +309,7 @@ function StoryPanel({ scene, story, idx, theme, tappedWord, revealed, onTap, onR
         </div>
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 32px", gap: 40 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? "20px 16px" : "48px 32px", gap: isMobile ? 24 : 40 }}>
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
           {scene.tp.map((w, i) => (
             <div key={i} onClick={() => onTap(w)} style={{ cursor: "pointer", transform: tappedWord === w ? "scale(1.12)" : "scale(1)", transition: "transform .15s" }}>
