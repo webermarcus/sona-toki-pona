@@ -1,19 +1,38 @@
-// Lesson player: runs a sequence of activities for a lesson's vocab + sentences.
+// Lesson player: runs a sequence of activities for a lesson's vocab and sentences.
+//
+// Resume: progress is saved to localStorage on every step. Reopening the same
+// lesson resumes from where you left off. A restart button (↺) in the header
+// clears the saved position and returns to step 1.
+//
+// Requeue: a wrong answer on any test activity inserts a copy of that step
+// back into the queue a few positions ahead, so it reappears before the
+// lesson ends. Each step is only requeued once (retried flag).
+
+const RESUME_KEY = 'tp-lesson-resume';
+
+function getSavedIdx(lessonId, seqLen) {
+  try {
+    const s = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null');
+    if (s && s.lessonId === lessonId && typeof s.idx === 'number'
+        && s.idx > 0 && s.idx < seqLen - 1) {
+      return s.idx;
+    }
+  } catch {}
+  return 0;
+}
 
 function LessonPlayer({ lesson, theme, state, setState, onBack }) {
-  // Build a sequence: for each new word, do Reveal -> TapGlyph. Then a few
-  // mixed-word rounds at the end (tap word + type).
+
+  // ── Build the canonical step sequence ─────────────────────────────
   const seq = React.useMemo(() => {
     const steps = [];
 
-    // Intro + word introduction
     steps.push({ kind: "teach", sectionIdx: 0 });
     lesson.words.forEach(w => {
       steps.push({ kind: "reveal",   word: w });
       steps.push({ kind: "tapGlyph", word: w });
     });
 
-    // Grammar rule + isolated word drills
     steps.push({ kind: "teach", sectionIdx: 1 });
     const practice = shuffle(lesson.words).flatMap((w, i) => [
       { kind: i % 2 === 0 ? "tapWord" : "type", word: w },
@@ -24,7 +43,6 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
       steps.push({ kind: "teach", sectionIdx: 2 });
     }
 
-    // Sentence-level activities — guarded by minimum length
     const sents    = lesson.sentences || [];
     const forCloze = sents.filter(s => s.tp.length >= 3);
     const forTrans = sents.filter(s => s.tp.length >= 2);
@@ -49,17 +67,89 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
     return steps;
   }, [lesson.id]);
 
-  const [idx, setIdx] = React.useState(0);
-  const cur = seq[idx];
-  const pct = Math.round((idx / (seq.length - 1)) * 100);
+  // ── Resume: initialize queue from saved position ───────────────────
+  const [savedIdx] = React.useState(() => getSavedIdx(lesson.id, seq.length));
 
-  function next() { setIdx(i => Math.min(i + 1, seq.length - 1)); }
+  const [queue, setQueue] = React.useState(() =>
+    seq.slice(savedIdx).map(s => ({ ...s }))
+  );
+  const [qIdx, setQIdx] = React.useState(0);
 
+  // Reset when navigating directly between lessons without unmounting
+  React.useEffect(() => {
+    const start = getSavedIdx(lesson.id, seq.length);
+    setQueue(seq.slice(start).map(s => ({ ...s })));
+    setQIdx(0);
+  }, [lesson.id]);
+
+  const cur = queue[qIdx] || { kind: "done" };
+
+  // Progress bar tracks position within the original sequence
+  const origPos = Math.min(savedIdx + qIdx, seq.length - 1);
+  const pct     = seq.length > 1
+    ? Math.round((origPos / (seq.length - 1)) * 100)
+    : 100;
+
+  // ── Persistence helpers ────────────────────────────────────────────
+  function saveProgress(newQIdx) {
+    try {
+      localStorage.setItem(RESUME_KEY, JSON.stringify({
+        lessonId: lesson.id,
+        idx: Math.min(savedIdx + newQIdx, seq.length - 1),
+      }));
+    } catch {}
+  }
+
+  function clearProgress() {
+    try { localStorage.removeItem(RESUME_KEY); } catch {}
+  }
+
+  function restart() {
+    clearProgress();
+    setQueue(seq.map(s => ({ ...s })));
+    setQIdx(0);
+  }
+
+  // ── Advance + requeue ──────────────────────────────────────────────
+  function next() {
+    const newQIdx = qIdx + 1;
+    setQIdx(newQIdx);
+    saveProgress(newQIdx);
+  }
+
+  // Insert a retried copy of the current step before sentences/done.
+  function requeueCurrent() {
+    if (!cur.retried) {
+      setQueue(prev => {
+        // Keep requeue before the last two items (sentences + done).
+        const insertAt = Math.min(
+          qIdx + 4,
+          Math.max(qIdx + 1, prev.length - 2)
+        );
+        const copy = [...prev];
+        copy.splice(insertAt, 0, { ...cur, retried: true });
+        return copy;
+      });
+    }
+  }
+
+  // For word-level activities: record mastery and optionally requeue.
   function handleAnswer(word, correct) {
     recordAnswer(state, setState, word, correct);
+    if (!correct) requeueCurrent();
     setTimeout(next, 50);
   }
 
+  // For sentence-level activities: record every word and optionally requeue.
+  function handleSentenceAnswer(correct, delay = 50) {
+    cur.sentence.tp.forEach(w => {
+      if (window.TP_INDEX[w]) recordAnswer(state, setState, w, correct);
+    });
+    if (!correct) requeueCurrent();
+    setTimeout(next, delay);
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
@@ -73,92 +163,114 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
           background: "transparent", border: "none", cursor: "pointer",
           color: theme.ink, fontSize: 20, opacity: 0.6,
         }}>←</button>
+
         <div style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", opacity: 0.55 }}>
           {lesson.num} · {lesson.title}
         </div>
+
         <div style={{ flex: 1, height: 2, background: theme.line, borderRadius: 2, margin: "0 20px", overflow: "hidden" }}>
           <div style={{
             width: `${pct}%`, height: "100%", background: theme.accent,
             transition: "width .4s cubic-bezier(.2,.7,.3,1)",
           }} />
         </div>
+
         <div style={{ fontSize: 12, opacity: 0.5, fontFamily: theme.mono, minWidth: 40, textAlign: "right" }}>
-          {Math.min(idx + 1, seq.length)}/{seq.length}
+          {Math.min(qIdx + 1, queue.length)}/{queue.length}
         </div>
+
+        <button
+          onClick={restart}
+          title="start over"
+          style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            color: theme.ink, opacity: 0.3, fontSize: 16, paddingLeft: 8,
+            fontFamily: theme.mono,
+          }}
+        >↺</button>
       </header>
 
       <main style={{
         flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
         padding: "40px 24px",
       }}>
-        <div key={idx} style={{ animation: "fadeIn .4s ease" }}>
+        <div key={`${lesson.id}-${qIdx}`} style={{ animation: "fadeIn .4s ease" }}>
+
           {cur.kind === "teach" && (
-            <TeachingBlock section={lesson.sections[cur.sectionIdx]} onNext={next} theme={theme} />
+            <TeachingBlock
+              section={lesson.sections[cur.sectionIdx]}
+              onNext={next}
+              theme={theme}
+            />
           )}
+
           {cur.kind === "reveal" && (
             <ActivityReveal word={cur.word} theme={theme} onNext={() => {
               recordAnswer(state, setState, cur.word, true);
               next();
             }} />
           )}
+
           {cur.kind === "tapGlyph" && (
-            <ActivityTapGlyph word={cur.word} theme={theme} onAnswer={c => handleAnswer(cur.word, c)} />
+            <ActivityTapGlyph
+              word={cur.word} theme={theme}
+              onAnswer={c => handleAnswer(cur.word, c)}
+            />
           )}
+
           {cur.kind === "tapWord" && (
-            <ActivityTapWord word={cur.word} theme={theme} onAnswer={c => handleAnswer(cur.word, c)} />
+            <ActivityTapWord
+              word={cur.word} theme={theme}
+              onAnswer={c => handleAnswer(cur.word, c)}
+            />
           )}
+
           {cur.kind === "type" && (
-            <ActivityType word={cur.word} theme={theme} onAnswer={c => handleAnswer(cur.word, c)} />
+            <ActivityType
+              word={cur.word} theme={theme}
+              onAnswer={c => handleAnswer(cur.word, c)}
+            />
           )}
+
           {cur.kind === "cloze" && (
             <ActivityCloze
               sentence={cur.sentence} lesson={lesson} theme={theme}
-              onAnswer={correct => {
-                cur.sentence.tp.forEach(w => {
-                  if (window.TP_INDEX[w]) recordAnswer(state, setState, w, correct);
-                });
-                setTimeout(next, 50);
-              }}
+              onAnswer={correct => handleSentenceAnswer(correct, 50)}
             />
           )}
+
           {cur.kind === "sentTrans" && (
             <ActivitySentTrans
               sentence={cur.sentence} theme={theme}
-              onAnswer={correct => {
-                cur.sentence.tp.forEach(w => {
-                  if (window.TP_INDEX[w]) recordAnswer(state, setState, w, correct);
-                });
-                setTimeout(next, 50);
-              }}
+              onAnswer={correct => handleSentenceAnswer(correct, 50)}
             />
           )}
+
           {cur.kind === "sentBuild" && (
             <ActivitySentBuild
               sentence={cur.sentence} theme={theme}
-              onAnswer={correct => {
-                cur.sentence.tp.forEach(w => {
-                  if (window.TP_INDEX[w]) recordAnswer(state, setState, w, correct);
-                });
-                setTimeout(next, correct ? 900 : 2800);
-              }}
+              onAnswer={correct => handleSentenceAnswer(correct, correct ? 900 : 2800)}
             />
           )}
+
           {cur.kind === "sentences" && (
             <SentencePractice lesson={lesson} theme={theme} onNext={next} />
           )}
+
           {cur.kind === "done" && (
             <LessonDone lesson={lesson} theme={theme} state={state} onBack={() => {
-              const next = {
+              clearProgress();
+              setState({
                 ...state,
                 lessonProgress: {
                   ...state.lessonProgress,
                   [lesson.id]: { completed: true },
                 },
-              };
-              setState(next);
+              });
               onBack();
             }} />
           )}
+
         </div>
       </main>
     </div>
@@ -166,7 +278,13 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
 }
 
 function TeachingBlock({ section, onNext, theme }) {
-  if (!section) { React.useEffect(() => onNext(), []); return null; }
+  // Always call the effect; conditionally fire inside it.
+  React.useEffect(() => {
+    if (!section) onNext();
+  }, []);
+
+  if (!section) return null;
+
   return (
     <div style={{ maxWidth: 520, textAlign: "left" }}>
       {section.kind === "intro" ? (
@@ -214,7 +332,8 @@ function SentencePractice({ lesson, theme, onNext }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
         {lesson.sentences.map((s, i) => (
           <div key={i} style={{
-            padding: "28px 32px", borderTop: `1px solid ${theme.line}`,
+            padding: "28px 32px",
+            borderTop: `1px solid ${theme.line}`,
             borderBottom: `1px solid ${theme.line}`,
           }}>
             <div style={{ display: "flex", justifyContent: "center", gap: 18, marginBottom: 16, flexWrap: "wrap" }}>

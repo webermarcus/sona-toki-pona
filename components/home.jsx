@@ -1,17 +1,22 @@
-// Home screen: course overview with lessons, flashcards, glyph index, and stories.
+// Home screen: two sections (grammar + vocabulary), stats, stories, practice.
 
 function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGlyphs, onOpenStory }) {
-  const totalWords = window.TP_VOCAB.length;
-  const masteredWords = window.TP_VOCAB.filter(v => masteryLevel(state.mastery[v.w]) >= 2).length;
-  const completedLessons = Object.values(state.lessonProgress || {}).filter(p => p.completed).length;
-  const totalSeen = Object.keys(state.mastery).length;
+  const grammarLessons = window.TP_LESSONS.filter(l => l.section === "grammar");
+
+  const totalWords      = window.TP_VOCAB.length;
+  const masteredWords   = window.TP_VOCAB.filter(v => masteryLevel(state.mastery[v.w]) >= 2).length;
+  const completedLessons= Object.values(state.lessonProgress || {}).filter(p => p.completed).length;
+  const totalSeen       = Object.keys(state.mastery).length;
 
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.ink }}>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "72px 40px 80px" }}>
 
-        {/* Masthead */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 40, marginBottom: 64 }}>
+        {/* ── Masthead ─────────────────────────────────────────────── */}
+        <div style={{
+          display: "flex", alignItems: "flex-end",
+          justifyContent: "space-between", gap: 40, marginBottom: 64,
+        }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, letterSpacing: 2.5, textTransform: "uppercase", opacity: 0.5, marginBottom: 16 }}>
               a course in
@@ -24,26 +29,26 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
             </div>
             <div style={{ fontSize: 17, opacity: 0.7, lineHeight: 1.5, maxWidth: 440, textWrap: "pretty" }}>
               One hundred and twenty words. A writing system of tiny pictures.
-              Learn the whole grammar, at your own pace.
+              Learn the whole language, at your own pace.
             </div>
           </div>
           <div style={{ display: "flex", gap: 36, alignItems: "flex-end" }}>
-            <Stat label="lessons done" value={`${completedLessons}/${window.TP_LESSONS.length}`} theme={theme} />
-            <Stat label="words met"    value={`${totalSeen}/${totalWords}`} theme={theme} />
-            <Stat label="mastered"     value={masteredWords} theme={theme} />
+            <Stat label="lessons done" value={`${completedLessons}/${grammarLessons.length}`} theme={theme} />
+            <Stat label="words met"    value={`${totalSeen}/${totalWords}`}                   theme={theme} />
+            <Stat label="mastered"     value={masteredWords}                                   theme={theme} />
           </div>
         </div>
 
-        {/* Lessons */}
-        <SectionTitle theme={theme}>the grammar · sona nasin</SectionTitle>
+        {/* ── Grammar lessons ──────────────────────────────────────── */}
+        <SectionTitle theme={theme}>grammar · sona nasin</SectionTitle>
         <div style={{
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1,
           background: theme.line, border: `1px solid ${theme.line}`,
           borderRadius: theme.radius, overflow: "hidden", marginBottom: 64,
         }}>
-          {window.TP_LESSONS.map((l, i) => {
-            const done = state.lessonProgress?.[l.id]?.completed;
-            const prevDone = i === 0 || state.lessonProgress?.[window.TP_LESSONS[i-1].id]?.completed;
+          {grammarLessons.map((l, i) => {
+            const done     = state.lessonProgress?.[l.id]?.completed;
+            const prevDone = i === 0 || state.lessonProgress?.[grammarLessons[i - 1].id]?.completed;
             return (
               <div
                 key={l.id}
@@ -78,16 +83,54 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
           })}
         </div>
 
-        {/* Stories */}
+        {/* ── Vocabulary coming soon ───────────────────────────────── */}
+        <SectionTitle theme={theme}>vocabulary · sona nimi</SectionTitle>
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1,
+          background: theme.line, border: `1px solid ${theme.line}`,
+          borderRadius: theme.radius, overflow: "hidden", marginBottom: 64,
+          opacity: 0.45,
+        }}>
+          {[
+            { num: "13", title: "Nature & Animals",      subtitle: "ma, soweli, kala, waso, seli, lete..." },
+            { num: "14", title: "Body & Senses",         subtitle: "lawa, noka, uta, kute, pilin, selo..." },
+            { num: "15", title: "Actions",               subtitle: "pali, lape, musi, utala, alasa, awen..." },
+            { num: "16", title: "Things & Space",        subtitle: "ilo, poki, supa, lupa, sewi, anpa..." },
+            { num: "17", title: "Feelings & Society",    subtitle: "olin, mu, kalama, mani, esun, moli..." },
+            { num: "18", title: "Words & Culture",       subtitle: "sitelen, nimi, lipu, ko, kiwen, len..." },
+          ].map(l => (
+            <div
+              key={l.num}
+              style={{
+                background: theme.bg, padding: "26px 28px",
+                display: "flex", gap: 22, alignItems: "center",
+              }}
+            >
+              <div style={{ fontFamily: theme.mono, fontSize: 13, opacity: 0.4, width: 28 }}>
+                {l.num}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontFamily: theme.display, fontSize: 22, fontStyle: "italic",
+                  letterSpacing: "-0.01em", marginBottom: 4,
+                }}>
+                  {l.title}
+                </div>
+                <div style={{ fontSize: 13, opacity: 0.6 }}>{l.subtitle}</div>
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.3, fontFamily: theme.mono }}>soon</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Stories ──────────────────────────────────────────────── */}
         <SectionTitle theme={theme}>stories · lipu musi</SectionTitle>
         <div style={{ marginBottom: 64 }}>
           <div
             onClick={onOpenStory}
             style={{
-              padding: "28px 32px",
-              border: `1px solid ${theme.line}`,
-              borderRadius: theme.radius,
-              cursor: "pointer",
+              padding: "28px 32px", border: `1px solid ${theme.line}`,
+              borderRadius: theme.radius, cursor: "pointer",
               display: "flex", gap: 28, alignItems: "center",
               background: theme.bg, transition: "background .15s",
             }}
@@ -105,15 +148,15 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
                 visual novel · guided reading
               </div>
               <div style={{ fontSize: 13, opacity: 0.55, lineHeight: 1.5 }}>
-                Familiar stories retold in toki pona, freshly generated from your vocabulary.
-                Tap any glyph for its meaning. Comprehension checks woven through the narrative.
+                Familiar stories retold in toki pona. Tap any glyph for its meaning.
+                Comprehension checks woven through each narrative.
               </div>
             </div>
             <div style={{ opacity: 0.3, fontSize: 22 }}>→</div>
           </div>
         </div>
 
-        {/* Practice */}
+        {/* ── Practice ─────────────────────────────────────────────── */}
         <SectionTitle theme={theme}>practice · musi sona</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 64 }}>
           <CardButton theme={theme} glyph="sitelen" title="all glyphs"
@@ -126,7 +169,10 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
             subtitle="words you haven't met"
             onClick={() => {
               const unseen = window.TP_VOCAB.filter(v => !state.mastery[v.w]).map(v => v.w);
-              onOpenFlashcards(unseen.length ? unseen : window.TP_VOCAB.map(v => v.w), unseen.length ? "new words" : "all words");
+              onOpenFlashcards(
+                unseen.length ? unseen : window.TP_VOCAB.map(v => v.w),
+                unseen.length ? "new words" : "all words"
+              );
             }} />
         </div>
 
@@ -138,6 +184,7 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
           <span>toki pona — language created by Sonja Lang, public-domain spirit</span>
           <span>sitelen pona · pictures for words</span>
         </div>
+
       </div>
     </div>
   );
