@@ -1,12 +1,18 @@
-// Lesson player: runs a sequence of activities for a lesson's vocab and sentences.
+// Lesson player — resume + requeue.
 //
-// Resume: progress is saved to localStorage on every step. Reopening the same
-// lesson resumes from where you left off. A restart button (↺) in the header
-// clears the saved position and returns to step 1.
+// Requeue fix: previously used useState + closure-captured qIdx, which
+// caused stale reads when the activity's onAnswer callback fired after
+// a delay. Now uses useReducer so the reducer always sees current state.
 //
-// Requeue: a wrong answer on any test activity inserts a copy of that step
-// back into the queue a few positions ahead, so it reappears before the
-// lesson ends. Each step is only requeued once (retried flag).
+// REQUEUE action: inserts a retried copy of the current step 4 positions
+// ahead (but always before the final sentences+done pair). Each step is
+// only requeued once (retried flag).
+//
+// NEXT action: just increments qIdx.
+//
+// Resume: saves {lessonId, idx} to localStorage via useEffect whenever
+// qIdx changes. On next mount, reads that position and slices seq there.
+// The ↺ button clears the saved position and resets to step 1.
 
 const RESUME_KEY = 'tp-lesson-resume';
 
@@ -14,16 +20,43 @@ function getSavedIdx(lessonId, seqLen) {
   try {
     const s = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null');
     if (s && s.lessonId === lessonId && typeof s.idx === 'number'
-        && s.idx > 0 && s.idx < seqLen - 1) {
-      return s.idx;
-    }
+        && s.idx > 0 && s.idx < seqLen - 1) return s.idx;
   } catch {}
   return 0;
 }
 
+// ── Reducer ────────────────────────────────────────────────────────
+function lessonReducer(state, action) {
+  switch (action.type) {
+
+    case 'INIT':
+      return { queue: action.queue, qIdx: 0 };
+
+    case 'NEXT':
+      return { ...state, qIdx: state.qIdx + 1 };
+
+    case 'REQUEUE': {
+      const { queue, qIdx } = state;
+      const cur = queue[qIdx];
+      if (!cur || cur.retried) return state;
+      // Insert before the last 2 items (sentences + done).
+      const insertAt = Math.min(
+        qIdx + 4,
+        Math.max(qIdx + 1, queue.length - 2)
+      );
+      const newQueue = [...queue];
+      newQueue.splice(insertAt, 0, { ...cur, retried: true });
+      return { queue: newQueue, qIdx };
+    }
+
+    default:
+      return state;
+  }
+}
+
+// ── Component ──────────────────────────────────────────────────────
 function LessonPlayer({ lesson, theme, state, setState, onBack }) {
 
-  // ── Build the canonical step sequence ─────────────────────────────
   const seq = React.useMemo(() => {
     const steps = [];
 
@@ -67,89 +100,68 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
     return steps;
   }, [lesson.id]);
 
-  // ── Resume: initialize queue from saved position ───────────────────
   const [savedIdx] = React.useState(() => getSavedIdx(lesson.id, seq.length));
 
-  const [queue, setQueue] = React.useState(() =>
-    seq.slice(savedIdx).map(s => ({ ...s }))
+  const [{ queue, qIdx }, dispatch] = React.useReducer(
+    lessonReducer,
+    null,
+    () => ({ queue: seq.slice(savedIdx).map(s => ({ ...s })), qIdx: 0 })
   );
-  const [qIdx, setQIdx] = React.useState(0);
 
-  // Reset when navigating directly between lessons without unmounting
+  // Safety: if lesson changes without a remount (shouldn't happen with key prop
+  // in app.jsx, but belt-and-suspenders).
   React.useEffect(() => {
     const start = getSavedIdx(lesson.id, seq.length);
-    setQueue(seq.slice(start).map(s => ({ ...s })));
-    setQIdx(0);
+    dispatch({ type: 'INIT', queue: seq.slice(start).map(s => ({ ...s })) });
   }, [lesson.id]);
+
+  // Save progress whenever qIdx advances.
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(RESUME_KEY, JSON.stringify({
+        lessonId: lesson.id,
+        idx: Math.min(savedIdx + qIdx, seq.length - 1),
+      }));
+    } catch {}
+  }, [qIdx, lesson.id]);
 
   const cur = queue[qIdx] || { kind: "done" };
 
-  // Progress bar tracks position within the original sequence
   const origPos = Math.min(savedIdx + qIdx, seq.length - 1);
   const pct     = seq.length > 1
     ? Math.round((origPos / (seq.length - 1)) * 100)
     : 100;
 
-  // ── Persistence helpers ────────────────────────────────────────────
-  function saveProgress(newQIdx) {
-    try {
-      localStorage.setItem(RESUME_KEY, JSON.stringify({
-        lessonId: lesson.id,
-        idx: Math.min(savedIdx + newQIdx, seq.length - 1),
-      }));
-    } catch {}
-  }
-
+  // ── Actions ──────────────────────────────────────────────────────
   function clearProgress() {
     try { localStorage.removeItem(RESUME_KEY); } catch {}
   }
 
   function restart() {
     clearProgress();
-    setQueue(seq.map(s => ({ ...s })));
-    setQIdx(0);
+    dispatch({ type: 'INIT', queue: seq.map(s => ({ ...s })) });
   }
 
-  // ── Advance + requeue ──────────────────────────────────────────────
-  function next() {
-    const newQIdx = qIdx + 1;
-    setQIdx(newQIdx);
-    saveProgress(newQIdx);
-  }
+  // These two dispatch functions are stable references (dispatch never changes),
+  // so there are no stale closure issues regardless of when they fire.
+  function doNext()    { dispatch({ type: 'NEXT' }); }
+  function doRequeue() { dispatch({ type: 'REQUEUE' }); }
 
-  // Insert a retried copy of the current step before sentences/done.
-  function requeueCurrent() {
-    if (!cur.retried) {
-      setQueue(prev => {
-        // Keep requeue before the last two items (sentences + done).
-        const insertAt = Math.min(
-          qIdx + 4,
-          Math.max(qIdx + 1, prev.length - 2)
-        );
-        const copy = [...prev];
-        copy.splice(insertAt, 0, { ...cur, retried: true });
-        return copy;
-      });
-    }
-  }
-
-  // For word-level activities: record mastery and optionally requeue.
   function handleAnswer(word, correct) {
     recordAnswer(state, setState, word, correct);
-    if (!correct) requeueCurrent();
-    setTimeout(next, 50);
+    if (!correct) doRequeue();
+    setTimeout(doNext, 50);
   }
 
-  // For sentence-level activities: record every word and optionally requeue.
-  function handleSentenceAnswer(correct, delay = 50) {
+  function handleSentenceAnswer(correct, delay) {
     cur.sentence.tp.forEach(w => {
       if (window.TP_INDEX[w]) recordAnswer(state, setState, w, correct);
     });
-    if (!correct) requeueCurrent();
-    setTimeout(next, delay);
+    if (!correct) doRequeue();
+    setTimeout(doNext, delay);
   }
 
-  // ── Render ─────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
@@ -199,7 +211,7 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
           {cur.kind === "teach" && (
             <TeachingBlock
               section={lesson.sections[cur.sectionIdx]}
-              onNext={next}
+              onNext={doNext}
               theme={theme}
             />
           )}
@@ -207,7 +219,7 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
           {cur.kind === "reveal" && (
             <ActivityReveal word={cur.word} theme={theme} onNext={() => {
               recordAnswer(state, setState, cur.word, true);
-              next();
+              doNext();
             }} />
           )}
 
@@ -254,7 +266,7 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
           )}
 
           {cur.kind === "sentences" && (
-            <SentencePractice lesson={lesson} theme={theme} onNext={next} />
+            <SentencePractice lesson={lesson} theme={theme} onNext={doNext} />
           )}
 
           {cur.kind === "done" && (
@@ -277,13 +289,16 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
   );
 }
 
-function TeachingBlock({ section, onNext, theme }) {
-  // Always call the effect; conditionally fire inside it.
-  React.useEffect(() => {
-    if (!section) onNext();
-  }, []);
+// ── Supporting components (unchanged) ──────────────────────────────
 
+function TeachingBlock({ section, onNext, theme }) {
+  React.useEffect(() => { if (!section) onNext(); }, []);
   if (!section) return null;
+
+  const kindLabel =
+    section.kind === "rule"  ? "grammar"    :
+    section.kind === "vocab" ? "vocabulary" :
+    "note";
 
   return (
     <div style={{ maxWidth: 520, textAlign: "left" }}>
@@ -303,7 +318,7 @@ function TeachingBlock({ section, onNext, theme }) {
       ) : (
         <>
           <div style={{ fontSize: 12, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.55, marginBottom: 16 }}>
-            {section.kind === "rule" ? "grammar" : "note"}
+            {kindLabel}
           </div>
           <div style={{
             fontFamily: theme.display, fontSize: 32, fontStyle: "italic",
