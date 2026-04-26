@@ -307,7 +307,7 @@ function StoryPanel({ scene, story, idx, theme, tappedWord, revealed, onTap, onR
           ))}
         </div>
         <div style={{ textAlign: "center", maxWidth: 520, minHeight: 30 }}>
-          <div style={{ fontFamily: theme.display, fontStyle: "italic", fontSize: 19, opacity: revealed ? 0.75 : 0, transition: "opacity .45s", lineHeight: 1.5 }}>
+          <div key={idx} style={{ fontFamily: theme.display, fontStyle: "italic", fontSize: 19, opacity: revealed ? 0.75 : 0, transition: "opacity .45s", lineHeight: 1.5 }}>
             {scene.en}
           </div>
         </div>

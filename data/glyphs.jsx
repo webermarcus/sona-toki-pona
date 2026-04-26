@@ -35,7 +35,7 @@ function Glyph({ word, size = 64, style = 'ink', title }) {
 
   return (
     <span
-      title={title || word}
+      title={title || undefined}
       style={{
         fontFamily,
         fontSize: size,

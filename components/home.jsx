@@ -10,14 +10,16 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
   const totalSeen        = Object.keys(state.mastery).length;
   const totalLessons     = window.TP_LESSONS.length;
 
-  // Shared lesson card renderer used by both sections.
-  function LessonCard({ l, i, prevDone }) {
+  // Renders a single lesson card. `wide` makes it span both grid columns
+  // (used for the last card of an odd-count section so nothing dangles).
+  function renderCard(l, i, prevDone, wide) {
     const done = state.lessonProgress?.[l.id]?.completed;
     return (
       <div
         key={l.id}
         onClick={() => onOpenLesson(l)}
         style={{
+          gridColumn: wide ? "1 / -1" : undefined,
           background: theme.bg, padding: "26px 28px", cursor: "pointer",
           display: "flex", gap: 22, alignItems: "center",
           transition: "background .15s",
@@ -36,8 +38,7 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
           }}>
             {l.title}
           </div>
-          <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 8 }}>{l.subtitle}</div>
-          <MasteryRow words={l.words} state={state} />
+          <div style={{ fontSize: 13, opacity: 0.6 }}>{l.subtitle}</div>
         </div>
         <div style={{ color: done ? theme.accent : theme.line, fontSize: 20 }}>
           {done ? "●" : "○"}
@@ -86,11 +87,12 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
         }}>
           {grammarLessons.map((l, i) => {
             const prevDone = i === 0 || state.lessonProgress?.[grammarLessons[i - 1].id]?.completed;
-            return <LessonCard key={l.id} l={l} i={i} prevDone={prevDone} />;
+            const wide     = grammarLessons.length % 2 === 1 && i === grammarLessons.length - 1;
+            return renderCard(l, i, prevDone, wide);
           })}
         </div>
 
-        {/* ── Vocabulary lessons (or coming-soon placeholder) ──────── */}
+        {/* ── Vocabulary lessons ───────────────────────────────────── */}
         <SectionTitle theme={theme}>vocabulary · sona nimi</SectionTitle>
         {vocabLessons.length > 0 ? (
           <div style={{
@@ -99,11 +101,12 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
             borderRadius: theme.radius, overflow: "hidden", marginBottom: 64,
           }}>
             {vocabLessons.map((l, i) => {
-              // First vocab lesson unlocks when the last grammar lesson is done.
+              const lastGrammarId = grammarLessons[grammarLessons.length - 1]?.id;
               const prevDone = i === 0
-                ? state.lessonProgress?.[grammarLessons[grammarLessons.length - 1]?.id]?.completed
+                ? state.lessonProgress?.[lastGrammarId]?.completed
                 : state.lessonProgress?.[vocabLessons[i - 1].id]?.completed;
-              return <LessonCard key={l.id} l={l} i={i} prevDone={prevDone} />;
+              const wide = vocabLessons.length % 2 === 1 && i === vocabLessons.length - 1;
+              return renderCard(l, i, prevDone, wide);
             })}
           </div>
         ) : (
@@ -114,14 +117,16 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
             opacity: 0.45,
           }}>
             {[
-              { num: "13", title: "Nature & Animals",   subtitle: "ma, soweli, kala, waso, seli, lete..." },
-              { num: "14", title: "Body & Senses",      subtitle: "lawa, noka, uta, kute, pilin, selo..."  },
-              { num: "15", title: "Actions",            subtitle: "pali, lape, musi, utala, alasa, awen..." },
-              { num: "16", title: "Things & Space",     subtitle: "ilo, poki, supa, lupa, sewi, anpa..."   },
-              { num: "17", title: "Feelings & Society", subtitle: "mu, kalama, mani, esun, moli, sike..."  },
-              { num: "18", title: "Words & Culture",    subtitle: "sitelen, nimi, lipu, ko, kiwen, len..."  },
-            ].map(l => (
+              { num: "12", title: "Colors",              subtitle: "kule, loje, laso, jelo, walo, pimeja"    },
+              { num: "13", title: "Nature & Animals",    subtitle: "ma, soweli, kala, waso, seli, lete..."   },
+              { num: "14", title: "Body & Senses",       subtitle: "lawa, noka, uta, kute, pilin, selo..."   },
+              { num: "15", title: "Actions",             subtitle: "pali, lape, musi, utala, alasa, awen..." },
+              { num: "16", title: "Things & Space",      subtitle: "ilo, poki, supa, lupa, sewi, sinpin..."  },
+              { num: "17", title: "Feelings & Society",  subtitle: "mu, kalama, mani, esun, moli, sike..."   },
+              { num: "18", title: "Writing & Materials", subtitle: "sitelen, nimi, lipu, ko, kiwen, len..."   },
+            ].map((l, i, arr) => (
               <div key={l.num} style={{
+                gridColumn: arr.length % 2 === 1 && i === arr.length - 1 ? "1 / -1" : undefined,
                 background: theme.bg, padding: "26px 28px",
                 display: "flex", gap: 22, alignItems: "center",
               }}>
@@ -156,10 +161,7 @@ function Home({ theme, state, setState, onOpenLesson, onOpenFlashcards, onOpenGl
               <Glyph word="lipu" size={44} style={theme.glyphStyle} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{
-                fontFamily: theme.display, fontSize: 24, fontStyle: "italic",
-                letterSpacing: "-0.01em", marginBottom: 5,
-              }}>
+              <div style={{ fontFamily: theme.display, fontSize: 24, fontStyle: "italic", letterSpacing: "-0.01em", marginBottom: 5 }}>
                 visual novel · guided reading
               </div>
               <div style={{ fontSize: 13, opacity: 0.55, lineHeight: 1.5 }}>
@@ -216,10 +218,7 @@ function Stat({ label, value, theme }) {
 
 function SectionTitle({ theme, children }) {
   return (
-    <div style={{
-      fontSize: 11, letterSpacing: 2.5, textTransform: "uppercase", opacity: 0.5,
-      fontFamily: theme.mono, marginBottom: 16,
-    }}>
+    <div style={{ fontSize: 11, letterSpacing: 2.5, textTransform: "uppercase", opacity: 0.5, fontFamily: theme.mono, marginBottom: 16 }}>
       {children}
     </div>
   );
@@ -235,12 +234,8 @@ function CardButton({ theme, glyph, title, subtitle, onClick }) {
     onMouseEnter={e => e.currentTarget.style.background = theme.hover}
     onMouseLeave={e => e.currentTarget.style.background = theme.bg}
     >
-      <div style={{ color: theme.ink, opacity: 0.85 }}>
-        <Glyph word={glyph} size={40} style={theme.glyphStyle} />
-      </div>
-      <div style={{ fontFamily: theme.display, fontSize: 22, fontStyle: "italic", letterSpacing: "-0.01em" }}>
-        {title}
-      </div>
+      <div style={{ color: theme.ink, opacity: 0.85 }}><Glyph word={glyph} size={40} style={theme.glyphStyle} /></div>
+      <div style={{ fontFamily: theme.display, fontSize: 22, fontStyle: "italic", letterSpacing: "-0.01em" }}>{title}</div>
       <div style={{ fontSize: 13, opacity: 0.6 }}>{subtitle}</div>
     </div>
   );
