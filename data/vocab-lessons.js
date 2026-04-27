@@ -139,7 +139,7 @@ window.TP_LESSONS.push(
     sections: [
       { kind: "intro", body: "The final set. Marks, materials, and the book. After this lesson, you know all 120 words of toki pona." },
       { kind: "vocab", title: "Writing and language", body: "sitelen = image, symbol, drawing, or writing. nimi = name or word. lipu = flat object, paper, document, or book. sitelen pona is the toki pona writing system, literally 'good pictures'." },
-      { kind: "vocab", title: "Materials and pu", body: "ko = powder, paste, clay, or semi-solid. kon = air, wind, spirit, or essence. kiwen = stone, hard object, or metal. len = cloth or clothing. pu = the official toki pona book by Sonja Lang. jan pi pu = a person who follows pu." },
+      { kind: "vocab", title: "Materials and pu", body: "ko = powder, paste, clay, or semi-solid. kon = air, wind, spirit, or essence. kiwen = stone, hard object, or metal. len = cloth or clothing. pu = the official toki pona book by Sonja Lang. jan pu = a person who follows pu." },
     ],
     words: ["sitelen","nimi","lipu","ko","kon","kiwen","len","pu"],
     sentences: [
