@@ -64,7 +64,7 @@ window.TP_LESSONS.push(
       { tp:["mi","pilin","pona"],          en:"I feel good." },
       { tp:["sijelo","sina","li","wawa"],  en:"Your body is strong." },
       { tp:["mi","lukin","e","ona"],       en:"I see them." },
-      { tp:["lawa","ona","li","suli"],     en:"Their head is important." },
+      { tp:["lawa","ona","li","suli"],     en:"Their mind is important." },
       { tp:["noka","jan","li","lili"],     en:"The person's legs are small." },
     ],
   },
