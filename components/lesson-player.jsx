@@ -70,6 +70,8 @@ function LessonPlayer({ lesson, theme, state, setState, onBack }) {
 
   const seq = React.useMemo(() => {
     const steps = [];
+
+    steps.push({ kind: "teach", sectionIdx: 0 });
     lesson.words.forEach(w => {
       steps.push({ kind: "reveal",   word: w });
       steps.push({ kind: "tapGlyph", word: w });

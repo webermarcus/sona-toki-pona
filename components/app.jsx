@@ -1,5 +1,6 @@
-// Main app shell. Owns state and theme, routes between views, and
-// implements the Tweaks protocol for live customization.
+// Main app shell. Owns theme and state, routes between views.
+// Tweaks (theme, typography, glyph style, romanization) are now stored
+// in React state with sensible defaults. No external edit-mode protocol.
 
 const THEMES = {
   zen: {
@@ -57,8 +58,15 @@ const TYPOGRAPHY = {
   },
 };
 
+const DEFAULT_TWEAKS = {
+  theme:            "night",
+  typography:       "serif",
+  glyphStyle:       "ink",
+  showRomanization: true,
+};
+
 function buildTheme(tweaks) {
-  const base = THEMES[tweaks.theme]      || THEMES.zen;
+  const base = THEMES[tweaks.theme]          || THEMES.night;
   const type = TYPOGRAPHY[tweaks.typography] || TYPOGRAPHY.serif;
   return {
     ...base,
@@ -68,32 +76,18 @@ function buildTheme(tweaks) {
   };
 }
 
-function CourseApp({ initialTweaks }) {
-  const [state,      _setState]    = React.useState(() => loadState());
-  const [tweaks,     setTweaks]    = React.useState(initialTweaks);
-  const [view,       setView]      = React.useState({ kind: "home" });
-  const [tweaksOpen, setTweaksOpen]= React.useState(false);
+function CourseApp() {
+  const [state,  _setState] = React.useState(() => loadState());
+  const [tweaks, setTweaks] = React.useState(DEFAULT_TWEAKS);
+  const [view,   setView]   = React.useState({ kind: "home" });
 
   const setState = React.useCallback(next => {
     _setState(next);
     saveState(next);
   }, []);
 
-  React.useEffect(() => {
-    function onMsg(e) {
-      if (!e.data || typeof e.data !== "object") return;
-      if (e.data.type === "__activate_edit_mode")   setTweaksOpen(true);
-      if (e.data.type === "__deactivate_edit_mode") setTweaksOpen(false);
-    }
-    window.addEventListener("message", onMsg);
-    try { window.parent.postMessage({ type: "__edit_mode_available" }, "*"); } catch {}
-    return () => window.removeEventListener("message", onMsg);
-  }, []);
-
   function updateTweak(key, value) {
-    const next = { ...tweaks, [key]: value };
-    setTweaks(next);
-    try { window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { [key]: value } }, "*"); } catch {}
+    setTweaks(prev => ({ ...prev, [key]: value }));
   }
 
   const theme = buildTheme(tweaks);
@@ -103,16 +97,15 @@ function CourseApp({ initialTweaks }) {
     content = (
       <Home
         theme={theme} state={state} setState={setState}
-        onOpenLesson={l  => setView({ kind: "lesson",     lesson: l })}
+        tweaks={tweaks} updateTweak={updateTweak}
+        onOpenLesson={l => setView({ kind: "lesson", lesson: l })}
         onOpenFlashcards={(words, title) => setView({ kind: "flashcards", words, title })}
         onOpenGlyphs={() => setView({ kind: "glyphs" })}
-        onOpenStory={()  => setView({ kind: "story" })}
+        onOpenStory={() => setView({ kind: "story" })}
       />
     );
   } else if (view.kind === "lesson") {
     content = (
-      // key forces a full remount when navigating between lessons, so
-      // the resume/queue state in LessonPlayer always starts fresh.
       <LessonPlayer
         key={view.lesson.id}
         lesson={view.lesson} theme={theme} state={state} setState={setState}
@@ -147,77 +140,10 @@ function CourseApp({ initialTweaks }) {
   return (
     <div style={{ fontFamily: theme.ui, color: theme.ink, background: theme.bg, minHeight: "100vh" }}>
       {content}
-      {tweaksOpen && (
-        <TweaksPanel tweaks={tweaks} updateTweak={updateTweak} theme={theme} state={state} setState={setState} />
-      )}
     </div>
-  );
-}
-
-function TweaksPanel({ tweaks, updateTweak, theme, state, setState }) {
-  return (
-    <div style={{
-      position: "fixed", bottom: 20, right: 20, width: 280,
-      background: theme.card, color: theme.ink,
-      border: `1px solid ${theme.line}`, borderRadius: theme.radius,
-      padding: 18, boxShadow: "0 14px 40px rgba(0,0,0,0.12)",
-      fontFamily: theme.ui, fontSize: 13, zIndex: 100,
-    }}>
-      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", opacity: 0.5, marginBottom: 14, fontFamily: theme.mono }}>
-        tweaks
-      </div>
-      <TweakRow label="theme">
-        {Object.entries(THEMES).map(([k, v]) => (
-          <Chip key={k} active={tweaks.theme === k} onClick={() => updateTweak("theme", k)} theme={theme}>{v.name}</Chip>
-        ))}
-      </TweakRow>
-      <TweakRow label="typography">
-        {Object.entries(TYPOGRAPHY).map(([k, v]) => (
-          <Chip key={k} active={tweaks.typography === k} onClick={() => updateTweak("typography", k)} theme={theme}>{v.name}</Chip>
-        ))}
-      </TweakRow>
-      <TweakRow label="glyph style">
-        <Chip active={tweaks.glyphStyle === "ink"} onClick={() => updateTweak("glyphStyle", "ink")} theme={theme}>hand-drawn</Chip>
-        <Chip active={tweaks.glyphStyle === "geo"} onClick={() => updateTweak("glyphStyle", "geo")} theme={theme}>geometric</Chip>
-      </TweakRow>
-      <TweakRow label="romanization">
-        <Chip active={tweaks.showRomanization}  onClick={() => updateTweak("showRomanization", true)}  theme={theme}>show</Chip>
-        <Chip active={!tweaks.showRomanization} onClick={() => updateTweak("showRomanization", false)} theme={theme}>hide</Chip>
-      </TweakRow>
-      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.line}` }}>
-        <button onClick={() => {
-          if (confirm("Reset all mastery progress?")) setState(defaultState());
-        }} style={{
-          padding: "6px 12px", fontSize: 11, fontFamily: theme.mono,
-          background: "transparent", color: theme.ink, opacity: 0.6,
-          border: `1px solid ${theme.line}`, borderRadius: theme.radius,
-          cursor: "pointer", letterSpacing: 1, textTransform: "uppercase",
-        }}>reset progress</button>
-      </div>
-    </div>
-  );
-}
-
-function TweakRow({ label, children }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.5, marginBottom: 6 }}>{label}</div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{children}</div>
-    </div>
-  );
-}
-
-function Chip({ active, onClick, theme, children }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "5px 10px", fontSize: 11, fontFamily: theme.mono,
-      background: active ? theme.ink : "transparent",
-      color:      active ? theme.bg  : theme.ink,
-      border: `1px solid ${theme.line}`, borderRadius: 999,
-      cursor: "pointer", letterSpacing: 0.5, textTransform: "lowercase",
-      transition: "background .15s, color .15s",
-    }}>{children}</button>
   );
 }
 
 window.CourseApp = CourseApp;
+window.THEMES = THEMES;
+window.TYPOGRAPHY = TYPOGRAPHY;

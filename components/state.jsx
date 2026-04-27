@@ -1,4 +1,4 @@
-// Shared helpers and mastery-dots progress system.
+// Shared helpers and mastery tracking.
 // Persists to localStorage. Each word tracks seen/correct counts.
 
 const STORAGE_KEY = "tp-course-state-v1";
@@ -15,11 +15,8 @@ function loadState() {
 
 function defaultState() {
   return {
-    mastery: {},           // word -> { seen, correct }
-    lessonProgress: {},    // lessonId -> { completed: bool, score: int }
-    currentLesson: null,
-    currentView: "home",   // home | lesson | flashcards | glyphs
-    currentFlashcard: 0,
+    mastery:        {},  // word -> { seen, correct }
+    lessonProgress: {},  // lessonId -> { completed: bool }
   };
 }
 
@@ -39,9 +36,8 @@ function masteryLevel(stats) {
   return 0;
 }
 
-// Mastery dot: 0=empty circle, 1-4=filled amount
 function MasteryDot({ level, size = 10, color = "currentColor" }) {
-  const fill = level === 0 ? "none" : color;
+  const fill    = level === 0 ? "none" : color;
   const opacity = level === 0 ? 0.25 : 0.3 + level * 0.175;
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" style={{ display: "inline-block" }}>
@@ -50,32 +46,17 @@ function MasteryDot({ level, size = 10, color = "currentColor" }) {
   );
 }
 
-function MasteryRow({ words, state, max = 4 }) {
-  return (
-    <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-      {words.slice(0, max).map(w => (
-        <MasteryDot key={w} level={masteryLevel(state.mastery[w])} />
-      ))}
-      {words.length > max && (
-        <span style={{ fontSize: 10, opacity: 0.5, marginLeft: 2 }}>+{words.length - max}</span>
-      )}
-    </div>
-  );
-}
-
 function recordAnswer(state, setState, word, correct) {
   const prev = state.mastery[word] || { seen: 0, correct: 0 };
-  const next = {
+  setState({
     ...state,
     mastery: {
       ...state.mastery,
       [word]: { seen: prev.seen + 1, correct: prev.correct + (correct ? 1 : 0) },
     },
-  };
-  setState(next);
+  });
 }
 
-// Shuffle util
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -85,7 +66,6 @@ function shuffle(arr) {
   return a;
 }
 
-// Pick N distractors from the full vocab excluding `except`
 function pickDistractors(except, n) {
   const pool = window.TP_VOCAB.filter(v => !except.includes(v.w));
   return shuffle(pool).slice(0, n).map(v => v.w);
@@ -93,5 +73,5 @@ function pickDistractors(except, n) {
 
 Object.assign(window, {
   loadState, saveState, defaultState, masteryLevel,
-  MasteryDot, MasteryRow, recordAnswer, shuffle, pickDistractors,
+  MasteryDot, recordAnswer, shuffle, pickDistractors,
 });
