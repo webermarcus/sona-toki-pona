@@ -3,10 +3,10 @@
 function GlyphIndex({ theme, state, onBack, onOpenFlashcards }) {
   const [filter, setFilter] = React.useState("all");
   const [query, setQuery] = React.useState("");
-  const cats = ["all", ...Array.from(new Set(window.TP_VOCAB.map(v => v.cat)))];
+  const cats = ["all", ...Array.from(new Set(window.TP_VOCAB.flatMap(v => v.cat))).sort()];
 
   const filtered = window.TP_VOCAB.filter(v => {
-    if (filter !== "all" && v.cat !== filter) return false;
+    if (filter !== "all" && !v.cat.includes(filter)) return false;
     if (query) {
       const q = query.toLowerCase();
       return v.w.includes(q) || v.m.toLowerCase().includes(q);
