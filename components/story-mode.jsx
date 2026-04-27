@@ -300,7 +300,7 @@ function StoryPanel({ scene, story, idx, theme, tappedWord, revealed, onTap, onR
 
       {tappedWord && (
         <div onClick={() => onTap(tappedWord)} style={{ position: "fixed", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", animation: "fadeIn .15s ease" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: theme.card, color: theme.ink, borderRadius: theme.radius, padding: "26px 34px", textAlign: "center", maxWidth: 220, border: `1.5px solid ${theme.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+          <div onClick={() => onTap(tappedWord)} style={{ background: theme.card, color: theme.ink, borderRadius: theme.radius, padding: "26px 34px", textAlign: "center", maxWidth: 220, border: `1.5px solid ${theme.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", cursor: "pointer" }}>
             <div style={{ color: theme.ink, marginBottom: 12 }}><Glyph word={tappedWord} size={72} style={theme.glyphStyle} /></div>
             <div style={{ fontFamily: theme.display, fontSize: 26, fontStyle: "italic", marginBottom: 5 }}>{tappedWord}</div>
             <div style={{ fontSize: 13, opacity: 0.62 }}>{window.TP_INDEX[tappedWord]?.m ?? "—"}</div>

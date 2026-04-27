@@ -1,13 +1,16 @@
 // Flashcard deck: self-paced review of any subset of vocabulary.
 
 function Flashcards({ words, theme, state, setState, onBack, title = "Flashcards" }) {
-  const [idx, setIdx] = React.useState(0);
-  const [flipped, setFlipped] = React.useState(false);
-  const [order, setOrder] = React.useState(() => shuffle(words));
+  const [idx,        setIdx]        = React.useState(0);
+  const [flipped,    setFlipped]    = React.useState(false);
+  const [order,      setOrder]      = React.useState(() => shuffle(words));
+  const [startSide,  setStartSide]  = React.useState("glyph"); // "glyph" | "meaning"
 
   React.useEffect(() => { setOrder(shuffle(words)); setIdx(0); setFlipped(false); }, [words.join(",")]);
+  // Reset flip state when startSide changes so cards aren't caught mid-flip.
+  React.useEffect(() => { setFlipped(false); }, [startSide]);
 
-  const word = order[idx];
+  const word  = order[idx];
   const entry = word ? window.TP_INDEX[word] : null;
 
   function mark(known) {
@@ -15,6 +18,10 @@ function Flashcards({ words, theme, state, setState, onBack, title = "Flashcards
     setFlipped(false);
     setTimeout(() => setIdx(i => (i + 1) % order.length), 180);
   }
+
+  // Which face shows first depends on startSide.
+  // showingGlyph is true when the glyph face is currently visible.
+  const showingGlyph = startSide === "glyph" ? !flipped : flipped;
 
   if (!word) {
     return (
@@ -41,7 +48,26 @@ function Flashcards({ words, theme, state, setState, onBack, title = "Flashcards
           {title}
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 12, opacity: 0.5, fontFamily: theme.mono }}>
+        {/* Side toggle */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {["glyph", "meaning"].map(side => (
+            <button
+              key={side}
+              onClick={() => setStartSide(side)}
+              style={{
+                padding: "5px 11px", fontSize: 11, fontFamily: theme.mono,
+                background: startSide === side ? theme.ink : "transparent",
+                color:      startSide === side ? theme.bg  : theme.ink,
+                border: `1px solid ${theme.line}`, borderRadius: 999,
+                cursor: "pointer", letterSpacing: 0.5,
+                transition: "background .15s, color .15s",
+              }}
+            >
+              {side}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.5, fontFamily: theme.mono, marginLeft: 8 }}>
           {idx + 1} / {order.length}
         </div>
       </header>
@@ -56,14 +82,14 @@ function Flashcards({ words, theme, state, setState, onBack, title = "Flashcards
             width: 360, height: 360, background: theme.card,
             border: `1.5px solid ${theme.line}`, borderRadius: theme.radius,
             cursor: "pointer", position: "relative",
-            perspective: "1000px",
           }}
         >
+          {/* Glyph face */}
           <div style={{
             position: "absolute", inset: 0, display: "flex",
             flexDirection: "column", alignItems: "center", justifyContent: "center",
             gap: 12, transition: "opacity .3s",
-            opacity: flipped ? 0 : 1, pointerEvents: flipped ? "none" : "auto",
+            opacity: showingGlyph ? 1 : 0, pointerEvents: showingGlyph ? "auto" : "none",
           }}>
             <div style={{ color: theme.ink }}>
               <Glyph word={word} size={180} style={theme.glyphStyle} />
@@ -74,11 +100,12 @@ function Flashcards({ words, theme, state, setState, onBack, title = "Flashcards
               </div>
             )}
           </div>
+          {/* Meaning face */}
           <div style={{
             position: "absolute", inset: 0, display: "flex",
             flexDirection: "column", alignItems: "center", justifyContent: "center",
             gap: 8, padding: 24, textAlign: "center",
-            transition: "opacity .3s", opacity: flipped ? 1 : 0, pointerEvents: flipped ? "auto" : "none",
+            transition: "opacity .3s", opacity: showingGlyph ? 0 : 1, pointerEvents: showingGlyph ? "none" : "auto",
           }}>
             <div style={{
               fontFamily: theme.display, fontSize: 48, fontStyle: "italic",
