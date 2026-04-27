@@ -334,7 +334,7 @@ function ActivityCloze({ sentence, lesson, theme, onAnswer }) {
       </div>
 
       {/* English for context — always visible; the task is completing the form, not the meaning */}
-      <div style={{ fontSize: 14, opacity: 0.5, fontStyle: "italic", fontFamily: theme.display, textAlign: "center" }}>
+      <div style={{ fontSize: 25, opacity: 0.5, fontStyle: "italic", fontFamily: theme.display, textAlign: "center" }}>
         {sentence.en}
       </div>
 
